@@ -1138,6 +1138,36 @@ WasmResult Context::setProperty(absl::string_view path, absl::string_view value)
   if (!stream_info) {
     return WasmResult::NotFound;
   }
+  size_t start = 0;
+  size_t end = path.find('\0', start);
+  if (end == absl::string_view::npos) {
+      end = start + path.size();
+    }
+  auto part = path.substr(start, end - start);
+  start = end + 1;
+
+  // Example path: metadata\0my.filter.com\0
+  auto part_token = property_tokens.find(part);
+  if (part_token->second == PropertyToken::METADATA) {
+    end = path.find('\0', start);
+    auto filter_name = path.substr(start, end - start);
+    // TODO check if we are at the end of the string or if it doesnt
+    // have null byte
+
+    ProtobufWkt::Struct metadata_val;
+    auto& fields_a = *metadata_val.mutable_fields();
+    
+    // value can be complex data structures e.g. JSON
+    std::string v1;
+    absl::StrAppend(&v1, value);
+    fields_a[v1].set_bool_value(true);
+
+    std::string key3;
+    absl::StrAppend(&key3, filter_name); // TODO: This should be only the filter name
+    stream_info->setDynamicMetadata(key3, metadata_val);
+    return WasmResult::Ok;
+  }
+
   std::string key;
   absl::StrAppend(&key, CelStateKeyPrefix, path);
   CelState* state;
